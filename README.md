@@ -1,3 +1,12 @@
+- [4. Encoding and Evolution](#4-encoding-and-evolution)
+  - [Dataflow through databases](#dataflow-through-databases)
+  - [Dataflow Through Services: REST and RPC](#dataflow-through-services-rest-and-rpc)
+    - [Web services](#web-services)
+    - [Problem with RPCs](#problem-with-rpcs)
+    - [Data encoding and evolution for RPC](#data-encoding-and-evolution-for-rpc)
+  - [Message-Passing Dataflow](#message-passing-dataflow)
+    - [Message broker](#message-broker)
+  - [Summary](#summary)
 - [5. Replication](#5-replication)
   - [Part II. Distributed Data](#part-ii-distributed-data)
   - [5. Replication intro](#5-replication-intro)
@@ -5,6 +14,116 @@
     - [Problems with Replication Lag](#problems-with-replication-lag)
     - [Multi-Leader Replication](#multi-leader-replication)
 
+# 4. Encoding and Evolution
+
+## Dataflow through databases
+- When older version of the application updates data previously written by a newer version of the application data may be lost
+![5326b302.png](attachments/5326b302.png)
+
+## Dataflow Through Services: REST and RPC
+- Clients and servers
+  - XMLHttpReqeust inside client-side JS so not HTML but something understandable by the client side
+- **Service-oriented architecture (SOA)**: Decompose large application to smaller services by area of functionality
+  - AKA **Microservices architecture**
+- Services are similar to DB in sense that they allow submit and query data in specified format
+- Key for service-oriented/microservice is to make application easeir to change by making services independently deployable and evolvable
+  - Team owns service allows old and new versions running
+  
+### Web services
+Whenever HTTP is used as underlying protocol
+But webservices are used not obly on web but different context:
+- Client app on user device
+- One service to another service
+- Service to different organization
+
+**REST**: Philosophy design built around principles of HTTP
+- Simple data format
+- URL for identifying resources
+- Cache control, autho, content type negotiation
+- More popular than SOAP for microservices
+- **OpenAPI or Swagger**: Way to describe API and produce doc
+
+**SOAP**: XML-based protocol
+- Most common over HTTP though aims to be HTTP indipendent
+- Complex standards
+- **WSDL**: Web Services Description Language
+  - Code-generation so client can access w/ local classes and methods
+  - Not human-readable so heavy use on tools
+- Fallen out of favor with smaller companies
+
+### Problem with RPCs
+**RPC**: Remote procedure calls
+- Hide request to network serice to look same as function. AKA **Local transparency**
+- Flawed since network calls are different than local function calls
+  - local calls are predictable, network calls aren't
+  - local calls return result, throw, or never return. Network calls also has return w/o result - timeout
+  - Retry may have went through but responses are lost
+    - **idempotence**: deduplication
+  - Network calls are slower and latency is variable
+  - Local calls pass in references to local memory. Network calls need to encode to bytes which are problematic for larger objects
+  - Client and service can be implemented in different languages. Ex JS number max 2^53
+  
+#### Current directions for RPC
+- It isn't going away.
+- New RPC frameworks which don't hide it's a network call
+  - Rest.li uses **promises** to encapsulate async calls and requrest multiple services in parallel
+- **Service Discovery** Client find out which IP and port
+- Binary encoding format = better performace than JSON over REST.
+  - REST advantage is easier experimentation and debugging
+  - More tools with REST
+  
+### Data encoding and evolution for RPC
+- Servers update first, clients second. BC on request and FC on resp
+- RPCService compat harder with cross org since no control over client (REST too)
+- RPC no agreement on how API versioning work. Rest use version #
+
+## Message-Passing Dataflow
+**async message-passing systems**: Middle between RPC and DB.
+- Similar to RPC in that req are delivered w/ low latency
+- Similar to DB since message is not via direct network con but through message broker
+
+Message broker adv (Kind of like SQS):
+- Buffer if recipient is overlaoded
+- Redeliver message if crash. Loss recovery
+- Sender doesn't need to know IP and port of recipient
+- One message to many recipient
+- Decouples sender and client
+
+Process is *one way* since sender do doesn't expect resp
+
+### Message broker
+- Old uses commerial enterprise
+- New: RabbitMQ, ActiveMQ, HornetQ, NATS, and Apache Kafka
+- Can chain consumer to ingest topic then publish another topic
+
+#### Distributed actor frameworks
+
+**actor model**: programming model for concurrency in a single process rather than dealing with threads.
+- Communicate y sending async messages
+- Mesasge delivery not guaranteeed
+- *distributed actor frameworks*: Scale app accross multiple nodes. 
+  - Combine message broker and actor programming model
+  - BW and FW compat to have rolling upgrades
+  
+## Summary
+- encoding affects efficiency
+- Rolling upgrades
+  - Incremental changes for faster iteration and catch bugs
+  - **evolvability**: ease of making changes to app
+  - **BW compat**: new code can read old data
+  - **FW compat**: old code can read new data
+- encoding formats
+  - Programming language: specific encoding restricted to single  language and fail to provide FW and BW compat
+  - Text: JSON, XML, CSV: Widespread, vauge of datatypes, numbers and binary string harder
+  - Binary schema: efficeint encoding w/ FW and BW compat
+    - Good for documentation
+    - Code generation in statically typed
+    - Now human readable
+- Dataflow
+  - DB
+  - RPC and REST
+  - Async message passing: Nodes communicate by sending messages encoded by sender, decode by recipient
+ 
 # 5. Replication
 
 ## Part II. Distributed Data
