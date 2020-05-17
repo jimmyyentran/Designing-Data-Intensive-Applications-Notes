@@ -3,16 +3,39 @@
   - [Dataflow Through Services: REST and RPC](#dataflow-through-services-rest-and-rpc)
     - [Web services](#web-services)
     - [Problem with RPCs](#problem-with-rpcs)
+      - [Current directions for RPC](#current-directions-for-rpc)
     - [Data encoding and evolution for RPC](#data-encoding-and-evolution-for-rpc)
   - [Message-Passing Dataflow](#message-passing-dataflow)
     - [Message broker](#message-broker)
+      - [Distributed actor frameworks](#distributed-actor-frameworks)
   - [Summary](#summary)
 - [5. Replication](#5-replication)
   - [Part II. Distributed Data](#part-ii-distributed-data)
+      - [Replication vs Paritioning](#replication-vs-paritioning)
   - [5. Replication intro](#5-replication-intro)
     - [Leaders and Followers](#leaders-and-followers)
+      - [Synch vs Async Replication](#synch-vs-async-replication)
+      - [Setting up new Followers](#setting-up-new-followers)
+      - [Handling node outages](#handling-node-outages)
+      - [Implementation of Replication Logs](#implementation-of-replication-logs)
+        - [Statement](#statement)
+        - [Write ahead log shipping](#write-ahead-log-shipping)
+        - [Logical (row based) log replication](#logical-row-based-log-replication)
+        - [Trigger-based replication](#trigger-based-replication)
     - [Problems with Replication Lag](#problems-with-replication-lag)
+      - [Reading your own writes](#reading-your-own-writes)
+      - [Monotonic Reads](#monotonic-reads)
+      - [Consistent Prefix Reads](#consistent-prefix-reads)
+      - [Solutions for Replication Lag](#solutions-for-replication-lag)
     - [Multi-Leader Replication](#multi-leader-replication)
+      - [Use cases for MLR](#use-cases-for-mlr)
+        - [Multi-datacenter operation](#multi-datacenter-operation)
+        - [Clients with offline operation](#clients-with-offline-operation)
+        - [Collaborative editing](#collaborative-editing)
+      - [Handling Write Conflicts](#handling-write-conflicts)
+        - [Sync vs Async conflict detection](#sync-vs-async-conflict-detection)
+        - [Conflict avoidance](#conflict-avoidance)
+        - [Converging towards consistent state](#converging-towards-consistent-state)
 
 # 4. Encoding and Evolution
 
@@ -26,12 +49,12 @@
 - **Service-oriented architecture (SOA)**: Decompose large application to smaller services by area of functionality
   - AKA **Microservices architecture**
 - Services are similar to DB in sense that they allow submit and query data in specified format
-- Key for service-oriented/microservice is to make application easeir to change by making services independently deployable and evolvable
+- Key for service-oriented/microservice is to make application easier to change by making services independently deployable and evolvable
   - Team owns service allows old and new versions running
   
 ### Web services
 Whenever HTTP is used as underlying protocol
-But webservices are used not obly on web but different context:
+But webservices are used not only on the web but different context:
 - Client app on user device
 - One service to another service
 - Service to different organization
@@ -44,7 +67,7 @@ But webservices are used not obly on web but different context:
 - **OpenAPI or Swagger**: Way to describe API and produce doc
 
 **SOAP**: XML-based protocol
-- Most common over HTTP though aims to be HTTP indipendent
+- Most common over HTTP though aims to be HTTP independent
 - Complex standards
 - **WSDL**: Web Services Description Language
   - Code-generation so client can access w/ local classes and methods
@@ -53,7 +76,7 @@ But webservices are used not obly on web but different context:
 
 ### Problem with RPCs
 **RPC**: Remote procedure calls
-- Hide request to network serice to look same as function. AKA **Local transparency**
+- Hide request to network service to look same as function. AKA **Local transparency**
 - Flawed since network calls are different than local function calls
   - local calls are predictable, network calls aren't
   - local calls return result, throw, or never return. Network calls also has return w/o result - timeout
@@ -68,7 +91,7 @@ But webservices are used not obly on web but different context:
 - New RPC frameworks which don't hide it's a network call
   - Rest.li uses **promises** to encapsulate async calls and requrest multiple services in parallel
 - **Service Discovery** Client find out which IP and port
-- Binary encoding format = better performace than JSON over REST.
+- Binary encoding format = better performance than JSON over REST.
   - REST advantage is easier experimentation and debugging
   - More tools with REST
   
@@ -163,7 +186,7 @@ How to ensure data ends up in all replicas
   - 1 replica is the leader, write goes here
   - Other are followers. Leader send change to followers as part of replication log or change stream
   - Client need to read query from leader or followers. Write only on leader
-  ![7f8fa9d8.png](:storage/bff7dba6-1552-4b2d-b716-59b56160bb36/7f8fa9d8.png)
+  ![7f8fa9d8.png](attachments/bff7dba6-1552-4b2d-b716-59b56160bb36/7f8fa9d8.png)
 - Relational and non relational uses this method. 
 - Distributed message brokers like Kafka and RabbitMQ also uses this
 
@@ -283,9 +306,36 @@ Eventuall consistency is inevitable in scalable system
 - Outage tolerance: data center operate independently
 - network tolerance: async replication tolerate network problems better
 
-**Conflict resolution**: Same data concurently modified in different datacenters and conflicts need to be resolved
+**Conflict resolution**: Same data concurrently modified in different datacenters and conflicts need to be resolved
 
 Retrofitted features in many DB can lead to quirks
 
 ##### Clients with offline operation
 Moblie devices with offline capability needs to be sync is in effect like 'leaders' with multi-leader replication process taken to the extreme
+
+##### Collaborative editing
+- To avoid conflicts need lock on the document before editing If someone else wants to edit the doc, they need commit change then release
+- Faster collaboration - unit of change smaller to avoid locking
+
+#### Handling Write Conflicts
+![](attachments/2020-05-16-06-23-49.png)
+
+##### Sync vs Async conflict detection
+In sync, leader just apply lock on item and abort 2nd request
+In async, both writes are accepted and conflict resolved async later
+
+##### Conflict avoidance
+Route user's data to same datacenter so from user's POV it looks like single-leader. 
+
+##### Converging towards consistent state
+- Unique ID - timestamp, UUID, etc and pic the highest ID. **Last write wins (LWW)**. Prone to data loss
+- Unique ID to a replica so higher replica takes precedences
+- Merge values together
+- Record conflict and as user to resolve later
+
+##### Custom conflict resolution logic
+Run custom application logic 
+- On write: When detect conflict, call the conflict handler
+- On read: All conflicting writes stored, when data is read, prompt user to resolve, then write back
+
+There are some new automatic conflict resolutions
