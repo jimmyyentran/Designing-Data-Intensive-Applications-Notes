@@ -41,6 +41,7 @@
 
 ## Dataflow through databases
 - When older version of the application updates data previously written by a newer version of the application data may be lost
+
 ![5326b302.png](attachments/5326b302.png)
 
 ## Dataflow Through Services: REST and RPC
@@ -186,6 +187,7 @@ How to ensure data ends up in all replicas
   - 1 replica is the leader, write goes here
   - Other are followers. Leader send change to followers as part of replication log or change stream
   - Client need to read query from leader or followers. Write only on leader
+  
   ![7f8fa9d8.png](attachments/bff7dba6-1552-4b2d-b716-59b56160bb36/7f8fa9d8.png)
 - Relational and non relational uses this method. 
 - Distributed message brokers like Kafka and RabbitMQ also uses this
@@ -339,3 +341,16 @@ Run custom application logic
 - On read: All conflicting writes stored, when data is read, prompt user to resolve, then write back
 
 There are some new automatic conflict resolutions
+
+#### Multi-Leader Replication Topologies
+**Replication topology**: communication paths where writers are propagated
+
+![](attachments/0766a843.png)
+
+- All to all more fault tolerant
+    - But replication messages "overtake" others
+    - **version vectors** can be used
+
+ ![](attachments/08fcabd6.png)
+ 
+### Leaderless Replication 
