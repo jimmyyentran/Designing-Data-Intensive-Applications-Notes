@@ -223,7 +223,7 @@ How to ensure data ends up in all replicas
   - Client need to read query from leader or followers. Write only on
     leader
 
-  ![7f8fa9d8.png](attachments/bff7dba6-1552-4b2d-b716-59b56160bb36/7f8fa9d8.png)
+  ![7f8fa9d8.png](attachments/7f8fa9d8.png)
 - Relational and non relational uses this method.
 - Distributed message brokers like Kafka and RabbitMQ also uses this
 
@@ -458,10 +458,17 @@ propagated
 
 ![](attachments/450ad7d7.png)
 
-- Reading from node that went ofline = potentially stale data
+- Reading from node that went offline = potentially stale data
     - Read from multiple nodes.
     - Use version to solve conflicts
  
 ##### Read and repair and anti-entropy
-- How to catchup after replica is down?
+- How to catchup after a replica is down?
     - Read repair: Writes new value to replica when stale data
+    - Anti-entropy process: BG process that looks for differences
+        - Helps increase durability (recovery when crash)
+        
+##### Quorums for reading and writing
+- *n* replica, *w* nodes confirm write, *r* nodes to consider successful
+- **Qorum rules**: As long as *w* + *r* > n, we have up-to-date reading
+- Common choice: n = odd, and `w = r= (n+1)/2`
