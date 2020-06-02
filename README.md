@@ -472,3 +472,47 @@ propagated
 - *n* replica, *w* nodes confirm write, *r* nodes to consider successful
 - **Qorum rules**: As long as *w* + *r* > n, we have up-to-date reading
 - Common choice: n = odd, and `w = r= (n+1)/2`
+
+Tolerate unavailability as follows:
+- w < n, still process writes if node unavailable
+- r < n, still process read if unavailable
+- n = 3, w = 2, r = 2 - can have 1 node
+- n = 5, w = 3, r = 3 - can have 2 node
+- Don't need to distinguish how node fail, just as long as others return 
+- Error if fewer than w or r nodes
+
+![](attachments/94e2ca15.png)
+
+#### Limitations of Quorum Consistency
+Quorums does not need to be majority, just as long sets of node has 1 overlap
+
+Even with w + r > n edge cases where stale values returned:
+- Sloppy quorum: w end up in different than r so no guarantee of overlap
+- 2 writes occur concurrently. Can use last write wins
+- Write happens with read, write reflected on some replicas
+- Write suceeded on some replicas but failed on others, will not roll back
+- Data restored from replica carrying old value break w
+- Unlucky with **Linearizability and quorums**
+
+w and r allow to adjust probability of stale values being read but not guarantee
+
+##### Monitoring staleness
+- No fixed order in which write are applied = harder to monitor
+
+#### Sloppy Quorums and Hinted Handoff
+- Some benefits of quorums discussed so far:
+  - Tolerate failure of individual nodes w/o failover
+  - Tolerate nodes slow bc don't have to wait n nodes to respond
+  - Good for high availability & low latency, and can handle stale reads sometime
+- But.....:
+  - Not as fault-tolerant
+  - Client cut off due to network interruption can cause client to no longer reach quorum
+
+Trade off when client connect to some nodes
+- Return error for request, or
+- Accept write anyways and write to nodes that are not amongst the n nodes
+  - AKA **sloppy quorum**. w and r still respected but different n nodes from usual
+  - once fixed, node temporarily used return back to home: **hinted handoff**
+  - Cannot be sure to read latest value
+  - Assurance of durability but no guarantee read will see
+  
