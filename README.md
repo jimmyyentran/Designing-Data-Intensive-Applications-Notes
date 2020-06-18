@@ -516,3 +516,24 @@ Trade off when client connect to some nodes
   - Cannot be sure to read latest value
   - Assurance of durability but no guarantee read will see
   
+##### Multi-datacenter operation
+Send replicated writes to nodes in other datacenter but only quorum needed with
+the local datacenter  
+
+#### Detecitng Concurrent Writes
+- Dynamo-style db allow concurrent writes to same key
+![](attachments/075d403c.png)
+- Node2 thinks that its final value is B whereas other nodes is A
+- To be **eventually consistent** replicas converge
+    - DB handling is poor - app developer needs to know internals to prevent data loss
+    
+##### Last write wins (discarding concurrent writes)
+- "recent" values are kept
+    - **LLW last write wins** based on timestamp. Achieves eventual convergence
+    but cost is durability. If losing data is unacceptable, LWW is poor choice for 
+    conflict
+    - Safe way: ensure key is written once and immutable. Each write = unique key
+    
+##### "Happens-before" relationship and concurrency
+- not concurrent: A operation depends on B or **casually dependent**
+- concurrent: clients start operation on same key
