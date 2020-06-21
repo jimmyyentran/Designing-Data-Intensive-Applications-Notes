@@ -605,9 +605,9 @@ key is written - When client reads a key, server returns all values not overwrit
 
 ### Summary
 
-- Repliction helps with:
+- Replication helps with:
   - **High Availability**: Keep system running even when one machine is down
-  - **Disconnected operation**: Application continue to work even w/ network interuption
+  - **Disconnected operation**: Application continue to work even w/ network interruption
   - **Latency**: Geographically closer so faster
   - **Scalability**: Handle higher volume of reads
 - Approaches to solve replication issues w/ concurrency etc:
@@ -619,3 +619,11 @@ key is written - When client reads a key, server returns all values not overwrit
     - Harder to reason and provide weak consistency
   - **Leaderless replication**: Send write to multiple nodes and reads to sever nodes to detect and correct
     nodes with stale data
+- Strange effects caused by replication lag
+  - **Read after write consistency**: User see data submitted themselves
+  - **Monotonic reads**: After see data at a point, shouldn't see data from earlier
+  - **Consistent prefix reads**: User should see data that makes causal sense: seeing question and reply in order
+- Conflicts occur in multileader and leaderless replicaiton when multiple write happen
+  - Algorithm that DB can use to determine if happen concurrently (version)
+  
+  
