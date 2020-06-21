@@ -1,3 +1,5 @@
+<!-- TOC -->
+
 - [4. Encoding and Evolution](#4-encoding-and-evolution)
   - [Dataflow through databases](#dataflow-through-databases)
   - [Dataflow Through Services: REST and RPC](#dataflow-through-services-rest-and-rpc)
@@ -11,17 +13,13 @@
   - [Summary](#summary)
 - [5. Replication](#5-replication)
   - [Part II. Distributed Data](#part-ii-distributed-data)
-    - [Replication vs Paritioning](#replication-vs-paritioning)
+    - [Replication vs Partitioning](#replication-vs-partitioning)
   - [5. Replication intro](#5-replication-intro)
     - [Leaders and Followers](#leaders-and-followers)
       - [Synch vs Async Replication](#synch-vs-async-replication)
       - [Setting up new Followers](#setting-up-new-followers)
       - [Handling node outages](#handling-node-outages)
       - [Implementation of Replication Logs](#implementation-of-replication-logs)
-        - [Statement](#statement)
-        - [Write ahead log shipping](#write-ahead-log-shipping)
-        - [Logical (row based) log replication](#logical-row-based-log-replication)
-        - [Trigger-based replication](#trigger-based-replication)
     - [Problems with Replication Lag](#problems-with-replication-lag)
       - [Reading your own writes](#reading-your-own-writes)
       - [Monotonic Reads](#monotonic-reads)
@@ -29,13 +27,16 @@
       - [Solutions for Replication Lag](#solutions-for-replication-lag)
     - [Multi-Leader Replication](#multi-leader-replication)
       - [Use cases for MLR](#use-cases-for-mlr)
-        - [Multi-datacenter operation](#multi-datacenter-operation)
-        - [Clients with offline operation](#clients-with-offline-operation)
-        - [Collaborative editing](#collaborative-editing)
       - [Handling Write Conflicts](#handling-write-conflicts)
-        - [Sync vs Async conflict detection](#sync-vs-async-conflict-detection)
-        - [Conflict avoidance](#conflict-avoidance)
-        - [Converging towards consistent state](#converging-towards-consistent-state)
+      - [Multi-Leader Replication Topologies](#multi-leader-replication-topologies)
+    - [Leaderless Replication](#leaderless-replication)
+      - [Writing to DB when node is down](#writing-to-db-when-node-is-down)
+      - [Limitations of Quorum Consistency](#limitations-of-quorum-consistency)
+      - [Sloppy Quorums and Hinted Handoff](#sloppy-quorums-and-hinted-handoff)
+      - [Detecitng Concurrent Writes](#detecitng-concurrent-writes)
+    - [Summary](#summary-1)
+
+<!-- /TOC -->
 
 # 4. Encoding and Evolution
 
@@ -64,11 +65,13 @@
 
 Whenever HTTP is used as underlying protocol But webservices are used
 not only on the web but different context:
+
 - Client app on user device
 - One service to another service
 - Service to different organization
 
 **REST**: Philosophy design built around principles of HTTP
+
 - Simple data format
 - URL for identifying resources
 - Cache control, autho, content type negotiation
@@ -76,6 +79,7 @@ not only on the web but different context:
 - **OpenAPI or Swagger**: Way to describe API and produce doc
 
 **SOAP**: XML-based protocol
+
 - Most common over HTTP though aims to be HTTP independent
 - Complex standards
 - **WSDL**: Web Services Description Language
@@ -86,6 +90,7 @@ not only on the web but different context:
 ### Problem with RPCs
 
 **RPC**: Remote procedure calls
+
 - Hide request to network service to look same as function. AKA **Local
   transparency**
 - Flawed since network calls are different than local function calls
@@ -121,18 +126,20 @@ not only on the web but different context:
 ## Message-Passing Dataflow
 
 **async message-passing systems**: Middle between RPC and DB.
+
 - Similar to RPC in that req are delivered w/ low latency
 - Similar to DB since message is not via direct network con but through
   message broker
 
 Message broker adv (Kind of like SQS):
+
 - Buffer if recipient is overlaoded
 - Redeliver message if crash. Loss recovery
 - Sender doesn't need to know IP and port of recipient
 - One message to many recipient
 - Decouples sender and client
 
-Process is *one way* since sender do doesn't expect resp
+Process is _one way_ since sender do doesn't expect resp
 
 ### Message broker
 
@@ -144,9 +151,10 @@ Process is *one way* since sender do doesn't expect resp
 
 **actor model**: programming model for concurrency in a single process
 rather than dealing with threads.
+
 - Communicate y sending async messages
 - Mesasge delivery not guaranteeed
-- *distributed actor frameworks*: Scale app accross multiple nodes.
+- _distributed actor frameworks_: Scale app accross multiple nodes.
   - Combine message broker and actor programming model
   - BW and FW compat to have rolling upgrades
 
@@ -186,12 +194,14 @@ Shared-memory architecture and shared-disk architecture both has
 downsides of cost when scaling.
 
 **Share nothing architecture** Each machine runs independently as a node
+
 - Distributed systems has constraints and tradeoffs
 - Complexity of application and limits expressiveness
 
-#### Replication vs Partitioning
+### Replication vs Partitioning
 
 **Replication**: Keeping same data on different nodes
+
 - Provide redundancy: if nodes are unavailable, data can still be served
   from other
 - Can improve performance
@@ -201,11 +211,13 @@ downsides of cost when scaling.
 ## 5. Replication intro
 
 Why replicate?
+
 - geographically close
 - System continue working even if some parts fail
 - Scale out number of machines that can serve read queries
 
 Learnings:
+
 - Difficulties in replication is handling changes to replicated data
 - Single-leader, multi-leader and leaderless
 - sync and async replication
@@ -217,6 +229,7 @@ How to ensure data ends up in all replicas
 
 - **Leader based replication** aka active/assive or master-slave
   replication
+
   - 1 replica is the leader, write goes here
   - Other are followers. Leader send change to followers as part of
     replication log or change stream
@@ -224,6 +237,7 @@ How to ensure data ends up in all replicas
     leader
 
   ![7f8fa9d8.png](attachments/7f8fa9d8.png)
+
 - Relational and non relational uses this method.
 - Distributed message brokers like Kafka and RabbitMQ also uses this
 
@@ -236,12 +250,14 @@ How to ensure data ends up in all replicas
 
 Leader based replication usually is async. But if fails before writes
 not replicated, can lose the write even if confirmed
+
 - Advantage: leader can process writes even if followers behind
 - useful if many followers and geo distribute
 
 #### Setting up new Followers
 
 Method without downtime:
+
 1. Take a snapshot of leader point in time
 2. Copy snapshot to new node
 3. Follower connects to leader and request for changes since snapshot.
@@ -257,6 +273,7 @@ processed before fault. When connect again catch up on stream of data
 
 **Leader failure**: One leader needs to be promoted to new leader.
 **Failover** clients reconfigured to consume from new leader.
+
 - Determine leader failed: Node doesn't respond within time limit = dead
 - Choose new leader: Election. Replica with most up-to-date
 - Reconfigure to use new leader: Client needs to send write to new
@@ -264,6 +281,7 @@ processed before fault. When connect again catch up on stream of data
   it's up again
 
 Failover issues:
+
 - If async replication, new leader may not receive all writes from old
   leader before old leader failed. Most common: discard old leader's
   write
@@ -283,6 +301,7 @@ Failover issues:
 followers
 
 Possible ways to breakdown:
+
 - nondeterministic function like NOW and RAND gets different valueon
   replicas
 - Autoinc needs to be in order on each replica
@@ -318,14 +337,16 @@ More error prone to bugs and limitations than DB built in replication
 
 Leader-based replication good for small percent write and large read
 
-*read scaling architecture*: increase capacity of read by adding more
+_read scaling architecture_: increase capacity of read by adding more
 followers
+
 - Works good with async
 - Sync will be unreliable as single node down make system unavailable
   for writing
 
 **eventual consistency**: Read on leader and follower is different since
 writes haven't been reflected in follower
+
 - Delay could be fraction of second or minutes if max capacity or issue
   with network
 
@@ -335,6 +356,7 @@ writes haven't been reflected in follower
 
 **read-after-write consistency**: User will see updated submitted
 immediately
+
 - Read user profile from the leader. Need way to know if user is looking
   at user's own profiel
 - Track time of last update and recent changes pull from leader
@@ -429,6 +451,7 @@ single-leader.
 ##### Custom conflict resolution logic
 
 Run custom application logic
+
 - On write: When detect conflict, call the conflict handler
 - On read: All conflicting writes stored, when data is read, prompt user
   to resolve, then write back
@@ -459,34 +482,39 @@ propagated
 ![](attachments/450ad7d7.png)
 
 - Reading from node that went offline = potentially stale data
-    - Read from multiple nodes.
-    - Use version to solve conflicts
- 
+  - Read from multiple nodes.
+  - Use version to solve conflicts
+
 ##### Read and repair and anti-entropy
+
 - How to catchup after a replica is down?
-    - Read repair: Writes new value to replica when stale data
-    - Anti-entropy process: BG process that looks for differences
-        - Helps increase durability (recovery when crash)
-        
+  - Read repair: Writes new value to replica when stale data
+  - Anti-entropy process: BG process that looks for differences
+    - Helps increase durability (recovery when crash)
+
 ##### Quorums for reading and writing
-- *n* replica, *w* nodes confirm write, *r* nodes to consider successful
-- **Qorum rules**: As long as *w* + *r* > n, we have up-to-date reading
+
+- _n_ replica, _w_ nodes confirm write, _r_ nodes to consider successful
+- **Qorum rules**: As long as _w_ + _r_ > n, we have up-to-date reading
 - Common choice: n = odd, and `w = r= (n+1)/2`
 
 Tolerate unavailability as follows:
+
 - w < n, still process writes if node unavailable
 - r < n, still process read if unavailable
 - n = 3, w = 2, r = 2 - can have 1 node
 - n = 5, w = 3, r = 3 - can have 2 node
-- Don't need to distinguish how node fail, just as long as others return 
+- Don't need to distinguish how node fail, just as long as others return
 - Error if fewer than w or r nodes
 
 ![](attachments/94e2ca15.png)
 
 #### Limitations of Quorum Consistency
+
 Quorums does not need to be majority, just as long sets of node has 1 overlap
 
 Even with w + r > n edge cases where stale values returned:
+
 - Sloppy quorum: w end up in different than r so no guarantee of overlap
 - 2 writes occur concurrently. Can use last write wins
 - Write happens with read, write reflected on some replicas
@@ -497,9 +525,11 @@ Even with w + r > n edge cases where stale values returned:
 w and r allow to adjust probability of stale values being read but not guarantee
 
 ##### Monitoring staleness
+
 - No fixed order in which write are applied = harder to monitor
 
 #### Sloppy Quorums and Hinted Handoff
+
 - Some benefits of quorums discussed so far:
   - Tolerate failure of individual nodes w/o failover
   - Tolerate nodes slow bc don't have to wait n nodes to respond
@@ -509,32 +539,38 @@ w and r allow to adjust probability of stale values being read but not guarantee
   - Client cut off due to network interruption can cause client to no longer reach quorum
 
 Trade off when client connect to some nodes
+
 - Return error for request, or
 - Accept write anyways and write to nodes that are not amongst the n nodes
+
   - AKA **sloppy quorum**. w and r still respected but different n nodes from usual
   - once fixed, node temporarily used return back to home: **hinted handoff**
   - Cannot be sure to read latest value
   - Assurance of durability but no guarantee read will see
-  
+
 ##### Multi-datacenter operation
+
 Send replicated writes to nodes in other datacenter but only quorum needed with
-the local datacenter  
+the local datacenter
 
 #### Detecitng Concurrent Writes
+
 - Dynamo-style db allow concurrent writes to same key
-![](attachments/075d403c.png)
+  ![](attachments/075d403c.png)
 - Node2 thinks that its final value is B whereas other nodes is A
 - To be **eventually consistent** replicas converge
-    - DB handling is poor - app developer needs to know internals to prevent data loss
-    
+  - DB handling is poor - app developer needs to know internals to prevent data loss
+
 ##### Last write wins (discarding concurrent writes)
+
 - "recent" values are kept
-    - **LLW last write wins** based on timestamp. Achieves eventual convergence
-    but cost is durability. If losing data is unacceptable, LWW is poor choice for 
+  - **LLW last write wins** based on timestamp. Achieves eventual convergence
+    but cost is durability. If losing data is unacceptable, LWW is poor choice for
     conflict
-    - Safe way: ensure key is written once and immutable. Each write = unique key
-    
+  - Safe way: ensure key is written once and immutable. Each write = unique key
+
 ##### "Happens-before" relationship and concurrency
+
 - not concurrent: A operation depends on B or **casually dependent**
 - concurrent: clients start operation on same key
   - Concurrent does not necessarily means happen at same time due to nature of
@@ -548,6 +584,7 @@ How it works: - Server maintain version number for every key and increment versi
 key is written - When client reads a key, server returns all values not overwritten and latest number - Client writes a key, must include version from last read - When write w/ version number, can overwrite all values
 
 ##### Merging concurrently written values
+
 - No daa is silently dropped but require clients to do more work
 - Clients have to clean up after merging concurrent operations
   - Concurrent values = siblings
@@ -557,8 +594,9 @@ key is written - When client reads a key, server returns all values not overwrit
   - Can leave marker on version to indicate item has been removed so when merging
     siblings, application code can know not to include it in union - **tombstone**: deletion marker - Merge siblings in application code is complex & error prone. There are
     ways to make this automatic
-      
+
 ##### Version vectors
+
 - Single version number not enough w/ multiple replicas accepting writes concurrently
 - Use version number per replica & keep track of version numbers from other replicas
 - **version vector** version numbers from all replicas
@@ -566,19 +604,18 @@ key is written - When client reads a key, server returns all values not overwrit
 - These version vectors are sent to client and sent back to DB when value is written
 
 ### Summary
-- Repliction helps with:
-    - **High Availability**: Keep system running even when one machine is down 
-    - **Disconnected operation**: Application continue to work even w/ network interuption
-    - **Latency**: Geographically closer so faster
-    - **Scalability**: Handle higher volume of reads
-- Approaches to solve replication issues w/ concurrency etc:
-    - **Single-leader replication**: All writes to single node
-        - Easy to understand
-        - No conflict resolution
-    - **Multi-leader replication**: Client send write sto several leaders
-        - Robust w/ faulty nodes, network interruptions, and latency spikes
-        - Harder to reason and provide weak consistency
-    - **Leaderless replication**: Send write to multiple nodes and reads to sever nodes to detect and correct
-    nodes with stale data
-    
 
+- Repliction helps with:
+  - **High Availability**: Keep system running even when one machine is down
+  - **Disconnected operation**: Application continue to work even w/ network interuption
+  - **Latency**: Geographically closer so faster
+  - **Scalability**: Handle higher volume of reads
+- Approaches to solve replication issues w/ concurrency etc:
+  - **Single-leader replication**: All writes to single node
+    - Easy to understand
+    - No conflict resolution
+  - **Multi-leader replication**: Client send write sto several leaders
+    - Robust w/ faulty nodes, network interruptions, and latency spikes
+    - Harder to reason and provide weak consistency
+  - **Leaderless replication**: Send write to multiple nodes and reads to sever nodes to detect and correct
+    nodes with stale data
