@@ -537,3 +537,48 @@ the local datacenter
 ##### "Happens-before" relationship and concurrency
 - not concurrent: A operation depends on B or **casually dependent**
 - concurrent: clients start operation on same key
+  - Concurrent does not necessarily means happen at same time due to nature of
+    clocks in distributed systems. Concurrency means when the two operations are
+    unaware of each other
+
+##### Capturing the happens-before relationship
+
+![](attachments/9cec9983.png)
+How it works: - Server maintain version number for every key and increment version # very time
+key is written - When client reads a key, server returns all values not overwritten and latest number - Client writes a key, must include version from last read - When write w/ version number, can overwrite all values
+
+##### Merging concurrently written values
+- No daa is silently dropped but require clients to do more work
+- Clients have to clean up after merging concurrent operations
+  - Concurrent values = siblings
+- Same issue with conflict resolution:
+  - Can choose latest timestamp = lose data
+  - Can take union
+  - Can leave marker on version to indicate item has been removed so when merging
+    siblings, application code can know not to include it in union - **tombstone**: deletion marker - Merge siblings in application code is complex & error prone. There are
+    ways to make this automatic
+      
+##### Version vectors
+- Single version number not enough w/ multiple replicas accepting writes concurrently
+- Use version number per replica & keep track of version numbers from other replicas
+- **version vector** version numbers from all replicas
+- **dotted version vector** used in Riak
+- These version vectors are sent to client and sent back to DB when value is written
+
+### Summary
+- Repliction helps with:
+    - **High Availability**: Keep system running even when one machine is down 
+    - **Disconnected operation**: Application continue to work even w/ network interuption
+    - **Latency**: Geographically closer so faster
+    - **Scalability**: Handle higher volume of reads
+- Approaches to solve replication issues w/ concurrency etc:
+    - **Single-leader replication**: All writes to single node
+        - Easy to understand
+        - No conflict resolution
+    - **Multi-leader replication**: Client send write sto several leaders
+        - Robust w/ faulty nodes, network interruptions, and latency spikes
+        - Harder to reason and provide weak consistency
+    - **Leaderless replication**: Send write to multiple nodes and reads to sever nodes to detect and correct
+    nodes with stale data
+    
+
