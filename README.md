@@ -626,4 +626,12 @@ key is written - When client reads a key, server returns all values not overwrit
 - Conflicts occur in multileader and leaderless replicaiton when multiple write happen
   - Algorithm that DB can use to determine if happen concurrently (version)
   
-  
+# 6. Partitioning
+
+- Having multiple copies of same data on different nodes we will need to break up
+the data into **partitions** aka **sharding**
+- We want to partition because scalability: read distributed to many disks
+
+## Partitioning and Replication
+
+
