@@ -633,5 +633,74 @@ the data into **partitions** aka **sharding**
 - We want to partition because scalability: read distributed to many disks
 
 ## Partitioning and Replication
+- Partition is combined with replication so copies stored on multiple nodes
+- Each node acts as a leader for some partition and followers for others
 
+![](attachments/29156868.png)
 
+## Partitioning of Key-Value Data
+- **Skewed** partition is when all load ends up in few partitions which are called **hot spot**
+- Use KeyValue over random since random assignment reads have to look at all nodes
+
+### Partitioning by Key Range
+- Using ranges of keys
+    - However, some ranges could be hot depending on access pattern
+    
+### Partitioning by Hash of Key
+- Helps with skew and hots pots by generating uniformly distributed keys
+- **Consistent hashing**: randomly chosen partition boundary to avoid need for central control or distributed consensus
+- Loose range queries bc everything is scattered across partitions
+- **compound primary key**: Use hashed first key to get partition and other column as range
+    - If pk is `user_id, timestamp`, can query timestamp range efficiently
+    
+### Skewed Workloads and Relieving Hot Spots
+- For hot specific keys, application and append random number to distribute. IE popular celebrity
+    - Makes read difficult since need to look at all keys
+
+## Partitioning and Secondary Indexes
+- secondary indexes don't map neatly to partitions
+- 2 types: **document-based partitioning** and **term-based partitioning**
+
+### Partitioning Secondary Indexes by Document
+- Each partition maintains its own local index
+![](attachments/b00dad68.png) 
+
+- Search will require **scatter/gather** which will search all paritions
+    - tail latency amplification and expensive
+    - Still used by MongoDB, Cassandra, ES
+    - Recommend structure so secondary index queries from single partition but this is hard since could be multiple secondary index
+    
+### Partitioning Secondary Indexes by Term 
+- Instead of each partition with secondary index, we can have global index
+    - Need to partition the global index as well otherwise will be bottleneck
+![](attachments/8cdbcdcd.png)
+- **term-partitioned**: term determines partition of the index. ie `color:red`
+- Good for range scans if partition by term
+- Good for even distributed load if partition on hash of term
+- Writes are slower and more complicated bc write now affect many partitions
+    - term-partitioned index which is also distributed may not be reflected in index
+    - GSI are async and eventual consistent
+    - DDB fraction of a second delay
+
+## Rebalancing Partitions
+- Things change in a  DB
+    - More query load so need more CPU
+    - Dataset increase so need more disks and RAM
+    - Machine fails so need another to take over
+- **rebalancing**: process of moving load from one node in the cluster to another
+- Requirements
+    - helps with load evenly distributed
+    - Accept read and writes while rebalancing
+    - No more data than necessary to be moved
+    
+### Strategies for Rebalancing
+#### Not to do: hash mod N
+- Using mod is is not scalable since `mod 10` -> `mod 11` would reassign hash to different node
+
+#### Fixed number of partitions
+![](attachments/d13b163e.png)
+- New node steals partition from the cluster
+- Number of partition doesn't change but can (depends on DB)
+- Choose high enough # of partition that strike balance between future growth and overhead of having too many partitions
+
+#### Dynamic partitioning
